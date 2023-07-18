@@ -1,17 +1,21 @@
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.generics import get_object_or_404
 from drf_yasg import openapi
-from api.models import Book, Author, Category
+from api.models import Book, Author, Category, Reservation
 from api.serializers import BookRetrieveSerializer,\
                             AuthorSerializer,\
                             CategorySerializer,\
                             UserSerializer,\
+                            UserRegisterSerializer,\
+                            ReservationSerializer,\
+                            ReservationCreateSerializer, \
                             BookCreateSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import authentication, permissions
 from rest_framework import status
 from django.contrib.auth.models import User
+from rest_framework.authtoken.models import Token
 
 
 # Create your views here.
@@ -24,6 +28,20 @@ class ListUsersView(APIView):
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
+
+
+class RegisterUserView(APIView):
+    """Register a new user"""
+    authentication_classes = [authentication.TokenAuthentication, authentication.SessionAuthentication]
+
+    def post(self, request):
+        serializer = UserRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            # Generate authentication token and return the response
+            token, _ = Token.objects.get_or_create(user=user)
+            return Response({'token': token.key}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ListBooksCreateView(APIView):
@@ -188,3 +206,50 @@ class CategoryDetailUpdateDeleteView(APIView):
         category = get_object_or_404(Category, pk=pk)
         category.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ListReservationView(APIView):
+    authentication_classes = [authentication.TokenAuthentication, authentication.SessionAuthentication]
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        """Get all reservations in a list"""
+        reservations = Reservation.objects.all()
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response(serializer.data)
+
+
+class ReservationDetailUpdateView(APIView):
+    authentication_classes = [authentication.TokenAuthentication, authentication.SessionAuthentication]
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request, pk):
+        reservation = get_object_or_404(Reservation, pk=pk)
+        serializer = ReservationSerializer(reservation)
+        return Response(serializer.data)
+
+
+class ReservationListCreateView(APIView):
+    authentication_classes = [authentication.TokenAuthentication, authentication.SessionAuthentication]
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        """Get all reservations in a list"""
+        reservations = Reservation.objects.all()
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        """Create a new reservation"""
+        serializer = ReservationCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            book = serializer.validated_data['book']
+            if not book.is_available:
+                return Response({'error': 'Book is not available'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                book.is_available = False
+                book.save()
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
