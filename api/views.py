@@ -228,6 +228,22 @@ class ReservationDetailUpdateView(APIView):
         serializer = ReservationSerializer(reservation)
         return Response(serializer.data)
 
+    def put(self, request, pk):
+        """Update a reservation by id"""
+        reservation = get_object_or_404(Reservation, pk=pk)
+        serializer = ReservationSerializer(reservation, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        else:
+            return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
+
+    def delete(self, request, pk):
+        """Delete a reservation by id"""
+        reservation = get_object_or_404(Reservation, pk=pk)
+        reservation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ReservationListCreateView(APIView):
     authentication_classes = [authentication.TokenAuthentication, authentication.SessionAuthentication]
